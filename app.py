@@ -1,43 +1,62 @@
 import streamlit as st
 import pickle
 import pandas as pd
+import numpy as np
 
-# Page Config
-st.set_page_config(page_title="IPL Win Predictor", page_icon="🏏", layout="wide")
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(
+    page_title="IPL Win Predictor",
+    page_icon="🏏",
+    layout="wide"
+)
 
-# Custom CSS
+# ---------------- CUSTOM CSS ----------------
 st.markdown("""
-    <style>
-    .main {
-        background-color: #0E1117;
-    }
-    h1 {
-        text-align: center;
-        color: #00FFAA;
-    }
-    .stButton>button {
-        background-color: #00FFAA;
-        color: black;
-        border-radius: 10px;
-        height: 3em;
-        width: 100%;
-        font-size: 18px;
-    }
-    </style>
+<style>
+body {
+    background-color: #0e1117;
+}
+.main {
+    background-color: #0e1117;
+}
+.big-font {
+    font-size:40px !important;
+    font-weight:700;
+}
+.stButton>button {
+    background: linear-gradient(90deg,#ff4b2b,#ff416c);
+    color:white;
+    border:none;
+    padding:10px 20px;
+    border-radius:8px;
+}
+.metric-card {
+    background: #1c1f26;
+    padding:20px;
+    border-radius:15px;
+    text-align:center;
+}
+</style>
 """, unsafe_allow_html=True)
 
-# Load Model
+# ---------------- LOAD MODEL ----------------
 pipe = pickle.load(open('ipl_model.pkl','rb'))
 
-st.title("🏏 IPL Win Probability Predictor")
+# ---------------- TITLE ----------------
+st.markdown('<p class="big-font">🏏 IPL Win Probability Predictor</p>', unsafe_allow_html=True)
+st.write("Predict live match win probability using Machine Learning")
 
-teams = ['Sunrisers Hyderabad','Mumbai Indians','Royal Challengers Bangalore',
-         'Kolkata Knight Riders','Kings XI Punjab','Chennai Super Kings',
-         'Rajasthan Royals','Delhi Capitals']
+st.divider()
 
-cities = ['Hyderabad','Bangalore','Mumbai','Chennai','Delhi','Kolkata','Jaipur']
-
+# ---------------- INPUT SECTION ----------------
 col1, col2 = st.columns(2)
+
+teams = ['Sunrisers Hyderabad', 'Mumbai Indians', 'Royal Challengers Bangalore',
+         'Kolkata Knight Riders', 'Kings XI Punjab',
+         'Chennai Super Kings', 'Rajasthan Royals', 'Delhi Capitals']
+
+cities = ['Hyderabad', 'Mumbai', 'Bangalore', 'Kolkata',
+          'Delhi', 'Chennai', 'Jaipur', 'Pune']
 
 with col1:
     batting_team = st.selectbox("Batting Team", teams)
@@ -45,37 +64,53 @@ with col1:
     city = st.selectbox("City", cities)
 
 with col2:
-    runs_left = st.number_input("Runs Left")
-    balls_left = st.number_input("Balls Left")
-    wickets_left = st.number_input("Wickets Left")
-    total_runs = st.number_input("Target")
+    target = st.number_input("Target", min_value=1)
+    score = st.number_input("Current Score", min_value=0)
+    overs = st.number_input("Overs Completed", min_value=0.0, max_value=20.0)
+    wickets = st.number_input("Wickets Fallen", min_value=0, max_value=10)
 
-if st.button("Predict Win Probability 🚀"):
+st.divider()
 
-    if balls_left == 0:
-        st.error("Balls left cannot be zero!")
-    else:
-        cr = (total_runs - runs_left) / (120 - balls_left)
-        rrr = runs_left / (balls_left / 6)
+# ---------------- PREDICTION ----------------
+if st.button("Predict Probability 🚀"):
 
-        input_df = pd.DataFrame({
-            'batting_team':[batting_team],
-            'bowling_team':[bowling_team],
-            'city':[city],
-            'runs_left':[runs_left],
-            'balls_left':[balls_left],
-            'wickets_left':[wickets_left],
-            'crr':[cr],
-            'rrr':[rrr]
-        })
+    runs_left = target - score
+    balls_left = 120 - (overs * 6)
+    wickets_left = 10 - wickets
 
-        result = pipe.predict_proba(input_df)
-        loss = result[0][0]
-        win = result[0][1]
+    crr = score / overs if overs != 0 else 0
+    rrr = (runs_left * 6) / balls_left if balls_left != 0 else 0
 
-        st.markdown("## 🎯 Match Prediction")
+    input_df = pd.DataFrame({
+        'batting_team':[batting_team],
+        'bowling_team':[bowling_team],
+        'city':[city],
+        'runs_left':[runs_left],
+        'balls_left':[balls_left],
+        'wickets_left':[wickets_left],
+        'crr':[crr],
+        'rrr':[rrr]
+    })
 
+    result = pipe.predict_proba(input_df)
+    loss = result[0][0]
+    win = result[0][1]
+
+    st.divider()
+
+    colA, colB = st.columns(2)
+
+    with colA:
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        st.metric("🏆 Batting Team Win %", f"{round(win*100)} %")
         st.progress(int(win*100))
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        st.success(f"🔥 Winning Probability: {round(win*100,2)}%")
-        st.error(f"💀 Losing Probability: {round(loss*100,2)}%")
+    with colB:
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        st.metric("🔥 Bowling Team Win %", f"{round(loss*100)} %")
+        st.progress(int(loss*100))
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.balloons()
+
